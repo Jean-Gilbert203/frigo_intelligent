@@ -1,7 +1,6 @@
 package mg.bios.frigo.service;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -41,13 +40,18 @@ public class StockService {
         LocalDate aujourdhui = LocalDate.now();
         List<AlimentEnStock> lots = stockRepository.findAllAvecDetails();
 
-        // Stock total de chaque aliment, tous compartiments confondus
+        // 1. Pour chaque aliment : stock total et stock DISPONIBLE (lots périmés exclus)
         Map<Integer, Integer> totalParAliment = new HashMap<>();
+        Map<Integer, Integer> disponibleParAliment = new HashMap<>();
         for (AlimentEnStock lot : lots) {
-            totalParAliment.merge(lot.getDictionnaire().getId(), lot.getQuantite(), Integer::sum);
+            Integer idAliment = lot.getDictionnaire().getId();
+            totalParAliment.merge(idAliment, lot.getQuantite(), Integer::sum);
+            if (!lot.estPerime(aujourdhui)) {
+                disponibleParAliment.merge(idAliment, lot.getQuantite(), Integer::sum);
+            }
         }
 
-        // Un bloc par compartiment (même les compartiments vides)
+        // 2. Un bloc par compartiment (même les compartiments vides)
         List<StockCompartimentDto> resultat = new ArrayList<>();
         for (Compartiment compartiment : compartimentRepository.findAll(Sort.by("id"))) {
 
@@ -63,11 +67,12 @@ public class StockService {
                 }
             }
 
-            // Un bloc par aliment, avec ses lots
+            // 3. Un bloc par aliment, avec ses lots
             List<StockAlimentDto> aliments = new ArrayList<>();
             for (List<AlimentEnStock> groupe : lotsParAliment.values()) {
                 DictionnaireAliment aliment = groupe.get(0).getDictionnaire();
                 int total = totalParAliment.get(aliment.getId());
+                int disponible = disponibleParAliment.getOrDefault(aliment.getId(), 0);
                 int quantiteIci = groupe.stream().mapToInt(AlimentEnStock::getQuantite).sum();
                 List<LotStockDto> lotsDto = groupe.stream()
                         .map(lot -> versLotDto(lot, aujourdhui))
@@ -80,7 +85,8 @@ public class StockService {
                         aliment.getSeuilMinimum(),
                         quantiteIci,
                         total,
-                        calculerStatut(total, aliment.getSeuilMinimum()),
+                        disponible,
+                        calculerStatut(disponible, aliment.getSeuilMinimum()),
                         lotsDto));
             }
 
@@ -95,8 +101,7 @@ public class StockService {
         return resultat;
     }
 
-    // LA règle de péremption, écrite une seule fois : les autres classes
-    // (tâche planifiée, alertes) appelleront cette méthode au lieu de la recopier
+    // LA règle de péremption, écrite une seule fois
     public String etatPeremption(long joursRestants) {
         if (joursRestants < 0) {
             return "PERIME";
@@ -108,17 +113,17 @@ public class StockService {
     }
 
     private LotStockDto versLotDto(AlimentEnStock lot, LocalDate aujourdhui) {
-        long jours = ChronoUnit.DAYS.between(aujourdhui, lot.getDatePeremption());
+        long jours = lot.joursAvantPeremption(aujourdhui);
         return new LotStockDto(lot.getId(), lot.getQuantite(), lot.getDateAjout(),
                 lot.getDatePeremption(), jours, etatPeremption(jours));
     }
 
-    // Statut de l'aliment d'après son stock total : RUPTURE, STOCK_BAS ou OK
-    private String calculerStatut(int total, int seuil) {
-        if (total == 0) {
+    // Statut de l'aliment d'après son stock disponible : RUPTURE, STOCK_BAS ou OK
+    private String calculerStatut(int disponible, int seuil) {
+        if (disponible == 0) {
             return "RUPTURE";
         }
-        if (total <= seuil) {
+        if (disponible <= seuil) {
             return "STOCK_BAS";
         }
         return "OK";

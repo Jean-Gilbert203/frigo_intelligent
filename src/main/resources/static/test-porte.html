@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Test WebSocket</title>
+</head>
+<body style="font-family: sans-serif; padding: 12px;">
+  <h3>Test WebSocket : /topic/porte</h3>
+  <pre id="journal"></pre>
+  <script>
+    const journal = document.getElementById('journal');
+    const log = (texte) => { journal.textContent += texte + '\n'; };
+
+    const ws = new WebSocket('ws://' + location.host + '/ws');
+
+    ws.onopen = () => {
+      log('Connexion ouverte');
+      ws.send('CONNECT\naccept-version:1.2\nhost:localhost\n\n\0');
+    };
+
+    ws.onmessage = (e) => {
+      const commande = e.data.split('\n')[0];
+      if (commande === 'CONNECTED') {
+        log('STOMP connecté');
+        ws.send('SUBSCRIBE\nid:sub-0\ndestination:/topic/porte\n\n\0');
+        log('Abonné à /topic/porte, en attente des événements...');
+      } else if (commande === 'MESSAGE') {
+        const corps = e.data.split('\n\n')[1].replace(/\0$/, '');
+        log('Événement reçu : ' + corps);
+      } else {
+        log(e.data);
+      }
+    };
+
+    ws.onclose = () => log('Connexion fermée');
+    ws.onerror = () => log('Erreur de connexion');
+  </script>
+</body>
+</html>

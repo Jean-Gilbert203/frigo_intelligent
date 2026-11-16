@@ -10,6 +10,7 @@ public record StockAlimentDto(
         Integer seuilMinimum,
         int quantite,
         int stockTotal,
+        int stockDisponible,
         String statut,
         List<LotStockDto> lots) {
 }

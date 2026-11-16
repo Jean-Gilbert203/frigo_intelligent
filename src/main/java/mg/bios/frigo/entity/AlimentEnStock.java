@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 // Une ligne de cette table = un LOT (mêmes aliment, date de péremption et compartiment)
 @Entity
@@ -66,4 +67,35 @@ public class AlimentEnStock {
 
     public Compartiment getCompartiment() { return compartiment; }
     public void setCompartiment(Compartiment compartiment) { this.compartiment = compartiment; }
+
+    // ---- Méthodes métier du diagramme de classes ----
+
+    // Retire n unités du lot ; refuse une quantité nulle, négative ou supérieure au contenu
+    public void retirer(int n) {
+        if (n <= 0 || n > quantite) {
+            throw new IllegalArgumentException("Quantité à retirer invalide : " + n);
+        }
+        this.quantite -= n;
+    }
+
+    public void ajouter(int n) {
+        if (n <= 0) {
+            throw new IllegalArgumentException("Quantité à ajouter invalide : " + n);
+        }
+        this.quantite += n;
+    }
+
+    public boolean estVide() {
+        return quantite == 0;
+    }
+
+    // Périmé = la date limite est strictement avant le jour donné
+    public boolean estPerime(LocalDate au) {
+        return datePeremption.isBefore(au);
+    }
+
+    // Négatif si la date est dépassée
+    public long joursAvantPeremption(LocalDate au) {
+        return ChronoUnit.DAYS.between(au, datePeremption);
+    }
 }
