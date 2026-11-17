@@ -6,11 +6,12 @@
   <title>Test WebSocket</title>
 </head>
 <body style="font-family: sans-serif; padding: 12px;">
-  <h3>Test WebSocket : /topic/porte</h3>
+  <h3>Test WebSocket : porte, stocks, courses</h3>
   <pre id="journal"></pre>
   <script>
     const journal = document.getElementById('journal');
     const log = (texte) => { journal.textContent += texte + '\n'; };
+    const destinations = ['/topic/porte', '/topic/stocks', '/topic/courses'];
 
     const ws = new WebSocket('ws://' + location.host + '/ws');
 
@@ -23,11 +24,14 @@
       const commande = e.data.split('\n')[0];
       if (commande === 'CONNECTED') {
         log('STOMP connecté');
-        ws.send('SUBSCRIBE\nid:sub-0\ndestination:/topic/porte\n\n\0');
-        log('Abonné à /topic/porte, en attente des événements...');
+        destinations.forEach((d, i) => {
+          ws.send('SUBSCRIBE\nid:sub-' + i + '\ndestination:' + d + '\n\n\0');
+          log('Abonné à ' + d);
+        });
       } else if (commande === 'MESSAGE') {
+        const ligneDestination = e.data.split('\n').find((l) => l.startsWith('destination:')) || '';
         const corps = e.data.split('\n\n')[1].replace(/\0$/, '');
-        log('Événement reçu : ' + corps);
+        log(ligneDestination.slice(12) + ' : ' + corps);
       } else {
         log(e.data);
       }

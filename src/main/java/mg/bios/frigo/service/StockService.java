@@ -119,7 +119,7 @@ public class StockService {
     }
 
     // Statut de l'aliment d'après son stock disponible : RUPTURE, STOCK_BAS ou OK
-    private String calculerStatut(int disponible, int seuil) {
+    public static String calculerStatut(int disponible, int seuil) {
         if (disponible == 0) {
             return "RUPTURE";
         }

@@ -9,6 +9,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import mg.bios.frigo.dto.StockAlimentDto;
 import mg.bios.frigo.dto.StockCompartimentDto;
+import mg.bios.frigo.service.AjoutService;
+import mg.bios.frigo.service.ConsommationService;
+import mg.bios.frigo.service.IdentiteService;
 import mg.bios.frigo.service.StockService;
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +20,10 @@ class StockControllerTest {
     @Test
     void doitRetournerLesStocks() {
         StockService stockService = mock(StockService.class);
-        StockController controller = new StockController(stockService);
+        ConsommationService consommationService = mock(ConsommationService.class);
+        AjoutService ajoutService = mock(AjoutService.class);
+        IdentiteService identite = mock(IdentiteService.class);
+        StockController controller = new StockController(stockService, consommationService, ajoutService, identite);
 
         StockAlimentDto aliment = new StockAlimentDto(
                 1,
