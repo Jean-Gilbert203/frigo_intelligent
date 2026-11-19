@@ -1,12 +1,16 @@
 package mg.bios.frigo.service;
 
+import java.time.Instant;
 import java.util.Optional;
 import mg.bios.frigo.dto.PorteDto;
 import mg.bios.frigo.entity.OuverturePorte;
 import mg.bios.frigo.entity.Utilisateur;
 import mg.bios.frigo.exception.ApiException;
 import mg.bios.frigo.repository.OuverturePorteRepository;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,10 +19,20 @@ public class PorteService {
 
     private final OuverturePorteRepository repository;
     private final DiffusionService diffusion;
+    private final PorteAlerteService alerteService;
+    private final TaskScheduler planificateur;
+    private final int delaiAlerteSecondes;
 
-    public PorteService(OuverturePorteRepository repository, DiffusionService diffusion) {
+    public PorteService(OuverturePorteRepository repository,
+                        DiffusionService diffusion,
+                        PorteAlerteService alerteService,
+                        @Qualifier("planificateur") TaskScheduler planificateur,
+                        @Value("${frigo.delai-alerte-porte-secondes:30}") int delaiAlerteSecondes) {
         this.repository = repository;
         this.diffusion = diffusion;
+        this.alerteService = alerteService;
+        this.planificateur = planificateur;
+        this.delaiAlerteSecondes = delaiAlerteSecondes;
     }
 
     @Transactional
@@ -30,6 +44,13 @@ public class PorteService {
         session.setUtilisateur(utilisateur);
         session = repository.save(session);
         diffusion.evenement("/topic/porte", "PORTE_OUVERTE");
+
+        // Une seule vérification, programmée dans N secondes : pas de surveillance permanente
+        Integer idOuverture = session.getId();
+        planificateur.schedule(
+                () -> alerteService.declencherSiNecessaire(idOuverture),
+                Instant.now().plusSeconds(delaiAlerteSecondes));
+
         return versDto(session);
     }
 

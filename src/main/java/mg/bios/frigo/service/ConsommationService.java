@@ -26,6 +26,7 @@ public class ConsommationService {
     private final AlimentEnStockRepository stockRepository;
     private final HistoriqueConsommationRepository historiqueRepository;
     private final CourseService courseService;
+    private final NotificationService notificationService;
     private final OuverturePorteRepository porteRepository;
     private final DiffusionService diffusion;
 
@@ -33,36 +34,36 @@ public class ConsommationService {
                                AlimentEnStockRepository stockRepository,
                                HistoriqueConsommationRepository historiqueRepository,
                                CourseService courseService,
+                               NotificationService notificationService,
                                OuverturePorteRepository porteRepository,
                                DiffusionService diffusion) {
         this.dictionnaireRepository = dictionnaireRepository;
         this.stockRepository = stockRepository;
         this.historiqueRepository = historiqueRepository;
         this.courseService = courseService;
+        this.notificationService = notificationService;
         this.porteRepository = porteRepository;
         this.diffusion = diffusion;
     }
 
     @Transactional
     public ConsommationDto consommer(Integer idAliment, Integer quantite, Utilisateur utilisateur) {
-        // 1. La quantité doit être un entier positif
         if (quantite == null || quantite <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "QUANTITE_INVALIDE",
                     "La quantité doit être un entier supérieur à 0");
         }
 
-        // 2. L'aliment doit exister dans le dictionnaire
+        // l'aliment doit exister dans le dictionnaire
         DictionnaireAliment aliment = dictionnaireRepository.findById(idAliment)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ALIMENT_INCONNU",
                         "Aliment inconnu : " + idAliment));
 
-        // 3. La porte doit être ouverte (R12)
         if (porteRepository.findFirstByDateFermetureIsNullOrderByDateOuvertureDesc().isEmpty()) {
             throw new ApiException(HttpStatus.CONFLICT, "PORTE_FERMEE",
                     "Impossible de prendre un aliment : la porte est fermée");
         }
 
-        // 4. Les lots consommables : non périmés, le plus proche de la péremption d'abord
+        // les lots consommables : non périmés, le plus proche de la péremption d'abord
         LocalDate aujourdhui = LocalDate.now();
         List<AlimentEnStock> lots = stockRepository.findLotsConsommables(idAliment, aujourdhui);
         int disponible = lots.stream().mapToInt(AlimentEnStock::getQuantite).sum();
@@ -72,7 +73,7 @@ public class ConsommationService {
                     Map.of("stockDisponible", disponible));
         }
 
-        // 5. Retirer, lot après lot (le lot vide reste en base : la rupture reste visible)
+        // retirer, lot après lot (le lot vide reste en base : la rupture reste visible)
         int restant = quantite;
         List<LotModifieDto> lotsTouches = new ArrayList<>();
         for (AlimentEnStock lot : lots) {
@@ -85,18 +86,21 @@ public class ConsommationService {
             lotsTouches.add(new LotModifieDto(lot.getId(), lot.getQuantite()));
         }
 
-        // 6. Écrire l'historique
+        // ecrire l'historique
         HistoriqueConsommation prise = new HistoriqueConsommation();
         prise.setUtilisateur(utilisateur);
         prise.setDictionnaire(aliment);
         prise.setQuantitePrise(quantite);
         historiqueRepository.save(prise);
 
-        // 7. Liste de courses (R5)
+        // liste de courses 
         int nouveauDisponible = disponible - quantite;
         boolean ajouteAuxCourses = courseService.synchroniser(aliment, nouveauDisponible);
 
-        // 8. Événements, diffusés après validation de la transaction
+        // Notifications pour les administrateurs 
+        notificationService.notifierStock(aliment, nouveauDisponible, ajouteAuxCourses);
+
+        // événements, diffusés après validation de la transaction
         diffusion.evenement("/topic/stocks", "STOCK_MODIFIE");
         if (ajouteAuxCourses) {
             diffusion.evenement("/topic/courses", "COURSES_MODIFIEES");

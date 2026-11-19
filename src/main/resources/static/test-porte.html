@@ -6,12 +6,15 @@
   <title>Test WebSocket</title>
 </head>
 <body style="font-family: sans-serif; padding: 12px;">
-  <h3>Test WebSocket : porte, stocks, courses</h3>
-  <pre id="journal"></pre>
+  <h3>Test WebSocket : porte, stocks, courses, notifications</h3>
+  <pre id="journal" style="white-space: pre-wrap;"></pre>
   <script>
     const journal = document.getElementById('journal');
     const log = (texte) => { journal.textContent += texte + '\n'; };
-    const destinations = ['/topic/porte', '/topic/stocks', '/topic/courses'];
+    const destinations = [
+      '/topic/porte', '/topic/stocks', '/topic/courses',
+      '/topic/notifications/1', '/topic/notifications/2'
+    ];
 
     const ws = new WebSocket('ws://' + location.host + '/ws');
 
@@ -31,7 +34,7 @@
       } else if (commande === 'MESSAGE') {
         const ligneDestination = e.data.split('\n').find((l) => l.startsWith('destination:')) || '';
         const corps = e.data.split('\n\n')[1].replace(/\0$/, '');
-        log(ligneDestination.slice(12) + ' : ' + corps);
+        log(new Date().toLocaleTimeString() + '  ' + ligneDestination.slice(12) + ' : ' + corps);
       } else {
         log(e.data);
       }

@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+
+import mg.bios.frigo.config.PlanificationConfig;
 import mg.bios.frigo.dto.PorteDto;
 import mg.bios.frigo.entity.OuverturePorte;
 import mg.bios.frigo.entity.Role;
@@ -17,6 +19,7 @@ import mg.bios.frigo.entity.Utilisateur;
 import mg.bios.frigo.exception.ApiException;
 import mg.bios.frigo.repository.OuverturePorteRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.scheduling.TaskScheduler;
 
 class PorteServiceTest {
 
@@ -24,7 +27,9 @@ class PorteServiceTest {
     void ouvrir_shouldThrowConflict_whenDoorAlreadyOpen() {
         OuverturePorteRepository repository = mock(OuverturePorteRepository.class);
         DiffusionService diffusion = mock(DiffusionService.class);
-        PorteService service = new PorteService(repository, diffusion);
+        PorteAlerteService alerteService = mock(PorteAlerteService.class);
+        TaskScheduler planificateur = mock(TaskScheduler.class);   
+        PorteService service = new PorteService(repository, diffusion, alerteService, planificateur, 30);
 
         Utilisateur utilisateur = new Utilisateur();
         utilisateur.setId(2);
@@ -50,7 +55,9 @@ class PorteServiceTest {
     void etat_shouldReturnClosedDoor_whenNoOpenSession() {
         OuverturePorteRepository repository = mock(OuverturePorteRepository.class);
         DiffusionService diffusion = mock(DiffusionService.class);
-        PorteService service = new PorteService(repository, diffusion);
+        PorteAlerteService alerteService = mock(PorteAlerteService.class);
+        TaskScheduler planificateur = mock(TaskScheduler.class);   
+        PorteService service = new PorteService(repository, diffusion, alerteService, planificateur, 30);
 
         when(repository.findFirstByDateFermetureIsNullOrderByDateOuvertureDesc())
                 .thenReturn(Optional.empty());
@@ -66,7 +73,9 @@ class PorteServiceTest {
     void fermer_shouldCloseDoorAndDiffuseEvent() {
         OuverturePorteRepository repository = mock(OuverturePorteRepository.class);
         DiffusionService diffusion = mock(DiffusionService.class);
-        PorteService service = new PorteService(repository, diffusion);
+        PorteAlerteService alerteService = mock(PorteAlerteService.class);
+        TaskScheduler planificateur = mock(TaskScheduler.class);   
+        PorteService service = new PorteService(repository, diffusion, alerteService, planificateur, 30);
 
         Utilisateur utilisateur = new Utilisateur();
         utilisateur.setId(2);
